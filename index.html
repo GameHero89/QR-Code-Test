@@ -2,131 +2,72 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>QR-Code Scanner mit Zoom</title>
+  <title>QR-Code aus Foto mit Zoom erkennen</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      padding: 2rem;
-    }
-    #qr-reader {
-      width: 300px;
-      margin: auto;
-    }
-    #zoomSlider {
-      width: 80%;
-      margin-top: 1rem;
-      display: none;
-    }
-    #qr-result {
-      margin-top: 1rem;
-      font-weight: bold;
-    }
-    #cameraList {
-      margin: 1rem auto;
-      max-width: 90%;
-    }
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    #preview { max-width: 90%; margin-top: 1rem; display: none; border: 1px solid #ccc; }
+    #result { margin-top: 1rem; font-weight: bold; }
+    #canvas { display: none; }
   </style>
 </head>
 <body>
 
-  <h1>Live QR-Code Scanner mit Zoom</h1>
-  <select id="cameraList" style="display:none;"></select>
-  <div id="qr-reader"></div>
-  <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" />
-  <div id="qr-result">Bitte Kamera aktivieren…</div>
+  <h1>QR-Code aus Foto erkennen</h1>
+
+  <input type="file" id="fileInput" accept="image/*" capture="environment" />
+  <br>
+  <label for="zoomRange">Zoom-Faktor:</label>
+  <input type="range" id="zoomRange" min="1" max="5" step="0.1" value="1" />
+  <div>
+    <img id="preview" />
+  </div>
+  <div id="result">Bitte ein Bild mit QR-Code auswählen.</div>
+  <canvas id="canvas"></canvas>
+  <div id="reader-temp" style="display: none;"></div>
 
   <script>
-    const qrResult = document.getElementById("qr-result");
-    const zoomSlider = document.getElementById("zoomSlider");
-    const cameraList = document.getElementById("cameraList");
+    const fileInput = document.getElementById("fileInput");
+    const zoomInput = document.getElementById("zoomRange");
+    const resultDiv = document.getElementById("result");
+    const preview = document.getElementById("preview");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
 
-    const qrCodeScanner = new Html5Qrcode("qr-reader");
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
 
-    async function initCameraScanner() {
-      try {
-        // Zuerst Kamera-Rechte anfordern, damit wir `label` bekommen
-        await navigator.mediaDevices.getUserMedia({ video: true });
+      const zoom = parseFloat(zoomInput.value);
+      const img = new Image();
+      const objectURL = URL.createObjectURL(file);
+      img.src = objectURL;
 
-        const cameras = await Html5Qrcode.getCameras();
-        console.log("Gefundene Kameras:", cameras);
+      img.onload = async () => {
+        // Canvas erhält volle Auflösung * Zoom
+        canvas.width = img.naturalWidth * zoom;
+        canvas.height = img.naturalHeight * zoom;
 
-        if (cameras.length === 0) {
-          qrResult.innerText = "❌ Keine Kamera gefunden.";
-          return;
-        }
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        // Kamera-Auswahlliste anzeigen
-        cameraList.style.display = "block";
-        cameraList.innerHTML = "";
+        // Zeige Vorschau-Bild (in Anzeigegröße, nicht zoomen)
+        preview.src = objectURL;
+        preview.style.display = "block";
 
-        cameras.forEach((cam, index) => {
-          const option = document.createElement("option");
-          option.value = cam.id;
-          option.textContent = cam.label || `Kamera ${index + 1}`;
-          cameraList.appendChild(option);
-        });
+        // Blob vom Canvas erzeugen (für QR-Code-Erkennung)
+        canvas.toBlob(async (blob) => {
+          const qrScanner = new Html5Qrcode("reader-temp");
+          try {
+            const text = await qrScanner.scanFile(blob, true);
+            resultDiv.innerText = "✅ QR-Code erkannt: " + text;
+          } catch (err) {
+            resultDiv.innerText = "❌ Kein QR-Code erkannt: " + err;
+          }
+        }, "image/jpeg", 0.95);
 
-        // Standard: Rückkamera oder erste
-        const defaultCamera = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[0];
-        cameraList.value = defaultCamera.id;
-
-        // Starten
-        startScanner(defaultCamera.id);
-
-        // Wechsel bei Auswahl
-        cameraList.addEventListener("change", () => {
-          qrCodeScanner.stop().then(() => {
-            startScanner(cameraList.value);
-          });
-        });
-
-      } catch (err) {
-        qrResult.innerText = "❌ Fehler beim Kamera-Zugriff: " + err;
-        console.error(err);
-      }
-    }
-
-    function startScanner(cameraId) {
-      qrCodeScanner.start(
-        cameraId,
-        {
-          fps: 10,
-          qrbox: 250,
-          aspectRatio: 1.33
-        },
-        qrCodeMessage => {
-          qrResult.innerText = "✅ QR-Code erkannt: " + qrCodeMessage;
-        },
-        errorMessage => {
-          qrResult.innerText = "Scanne…";
-        }
-      ).then(() => {
-        const track = qrCodeScanner.getRunningTrack();
-        const capabilities = track?.getCapabilities();
-
-        if (capabilities?.zoom) {
-          zoomSlider.style.display = "block";
-          zoomSlider.min = capabilities.zoom.min;
-          zoomSlider.max = capabilities.zoom.max;
-          zoomSlider.step = capabilities.zoom.step || 0.1;
-          zoomSlider.value = capabilities.zoom.min;
-
-          zoomSlider.oninput = () => {
-            track.applyConstraints({ advanced: [{ zoom: parseFloat(zoomSlider.value) }] });
-          };
-        } else {
-          zoomSlider.style.display = "none";
-          console.warn("Zoom wird nicht unterstützt.");
-        }
-      }).catch(err => {
-        qrResult.innerText = "❌ Fehler beim Starten des Scanners: " + err;
-      });
-    }
-
-    // Start
-    initCameraScanner();
+        URL.revokeObjectURL(objectURL);
+      };
+    });
   </script>
 
 </body>
