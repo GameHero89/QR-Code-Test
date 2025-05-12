@@ -18,6 +18,7 @@
   <br>
   <img id="preview" />
   <div id="result">Bitte ein Bild mit QR-Code auswählen.</div>
+  <div id="reader-temp" style="display: none;"></div>
 
   <script>
     const fileInput = document.getElementById("fileInput");
@@ -32,7 +33,7 @@
       preview.src = url;
       preview.style.display = "block";
 
-      const qrScanner = new Html5Qrcode("reader-temp"); // Dummy-Div für scanFile()
+      const qrScanner = new Html5Qrcode("reader-temp");
 
       try {
         const text = await qrScanner.scanFile(file, true);
