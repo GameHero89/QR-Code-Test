@@ -1,90 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>QR Scanner with Camera Switch</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    #reader { width: 100%; max-width: 400px; margin: auto; }
-    body { font-family: sans-serif; text-align: center; padding: 1rem; }
-    #result { font-weight: bold; margin-top: 1rem; }
-    select { margin-bottom: 1rem; }
-  </style>
 </head>
 <body>
-
-  <h1>QR Scanner</h1>
-
-  <select id="cameraSelect"></select>
-  <div id="reader"></div>
-  <div id="result">Waiting for scan...</div>
+  <div id="reader" style="width: 300px;"></div>
+  <div id="result"></div>
 
   <script>
-    const cameraSelect = document.getElementById("cameraSelect");
-    const resultDiv = document.getElementById("result");
-    const readerId = "reader";
-    let html5QrCode = new Html5Qrcode(readerId);
-    let currentCameraId = null;
-
-    function startScanner(cameraId) {
-      html5QrCode.start(
-        cameraId,
-        {
-          fps: 10,
-          qrbox: 250,
-          videoConstraints: {
-            advanced: [{ zoom: 2.5 }]
-          }
-        },
-        decodedText => {
-          resultDiv.textContent = "✅ QR Code: " + decodedText;
-        }
-      ).catch(err => {
-        resultDiv.textContent = "❌ Error: " + err;
-      });
+    function onScanSuccess(decodedText, decodedResult) {
+        document.getElementById('result').innerText = "QR-Code Inhalt: " + decodedText;
+        // Hier kannst du decodedText z.B. an ein Backend schicken
     }
 
-    function switchCamera(newCameraId) {
-      if (currentCameraId === newCameraId) return;
-      if (html5QrCode._isScanning) {
-        html5QrCode.stop()
-          .then(() => {
-            html5QrCode.clear();
-            currentCameraId = newCameraId;
-            startScanner(currentCameraId);
-          })
-          .catch(err => {
-            resultDiv.textContent = "❌ Stop error: " + err;
-          });
-      } else {
-        currentCameraId = newCameraId;
-        startScanner(currentCameraId);
-      }
-    }
-
-    Html5Qrcode.getCameras().then(cameras => {
-      if (!cameras || cameras.length === 0) {
-        resultDiv.textContent = "❌ No cameras found.";
-        return;
-      }
-
-      cameras.forEach((cam, index) => {
-        const option = document.createElement("option");
-        option.value = cam.id;
-        option.textContent = cam.label || `Camera ${index + 1}`;
-        cameraSelect.appendChild(option);
-      });
-
-      // Start with the first one
-      switchCamera(cameras[0].id);
-
-      cameraSelect.addEventListener("change", () => {
-        switchCamera(cameraSelect.value);
-      });
-    }).catch(err => {
-      resultDiv.textContent = "❌ Camera error: " + err;
+    const html5QrCode = new Html5Qrcode("reader");
+    html5QrCode.start(
+      { facingMode: "environment" }, // Rückkamera
+      {
+        fps: 10,
+        qrbox: 250
+      },
+      onScanSuccess
+    ).catch(err => {
+        console.error("Fehler beim Starten der Kamera: ", err);
     });
   </script>
-
 </body>
 </html>
