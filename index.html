@@ -1,4 +1,30 @@
-<script>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>Kamera-Diagnose</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    select, button { font-size: 1rem; padding: 0.5rem; margin-top: 1rem; }
+    video { margin-top: 1rem; width: 100%; max-width: 480px; height: auto; border: 1px solid #ccc; }
+    pre { text-align: left; max-width: 90%; margin: 1rem auto; background: #f8f8f8; padding: 1rem; overflow-x: auto; }
+  </style>
+</head>
+<body>
+
+  <h1>📷 Kamera-Diagnose</h1>
+
+  <button id="checkPermissions">🔍 Kamera testen</button>
+  <br>
+  <label for="cameraSelect">🎥 Kamera auswählen:</label>
+  <br>
+  <select id="cameraSelect"></select>
+  <br>
+  <video id="video" autoplay playsinline></video>
+
+  <pre id="log">Logausgabe…</pre>
+
+ <script>
 const video = document.getElementById("video");
 const cameraSelect = document.getElementById("cameraSelect");
 const checkBtn = document.getElementById("checkPermissions");
@@ -50,3 +76,6 @@ cameraSelect.addEventListener("change", async () => {
 
 checkBtn.addEventListener("click", requestAccessAndListCameras);
 </script>
+
+</body>
+</html>
