@@ -29,11 +29,12 @@
        { facingMode: "environment" }, // Rückkamera
       {
         fps: 10,
-        qrbox: 250
-      },
+        qrbox: 250,
         videoConstraints: {
           advanced: [{ zoom: 2.5 }] // Versuche 2,5x digitalen Zoom
-        },
+        }
+      },
+        
       
       onScanSuccess
     ).catch(err => {
