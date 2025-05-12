@@ -1,97 +1,52 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <title>Kamera-Diagnose</title>
-  <style>
-    body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    select, button { font-size: 1rem; padding: 0.5rem; margin-top: 1rem; }
-    video { margin-top: 1rem; width: 100%; max-width: 480px; height: auto; border: 1px solid #ccc; }
-    pre { text-align: left; max-width: 90%; margin: 1rem auto; background: #f8f8f8; padding: 1rem; overflow-x: auto; }
-  </style>
-</head>
-<body>
+<script>
+const video = document.getElementById("video");
+const cameraSelect = document.getElementById("cameraSelect");
+const checkBtn = document.getElementById("checkPermissions");
+const logEl = document.getElementById("log");
 
-  <h1>📷 Kamera-Diagnose</h1>
+let stream;
 
-  <button id="checkPermissions">🔍 Kamera testen</button>
-  <br>
-  <label for="cameraSelect">🎥 Kamera auswählen:</label>
-  <br>
-  <select id="cameraSelect"></select>
-  <br>
-  <video id="video" autoplay playsinline></video>
+const log = (msg) => {
+  logEl.textContent += "\n" + msg;
+  console.log(msg);
+};
 
-  <pre id="log">Logausgabe…</pre>
+async function requestAccessAndListCameras() {
+  try {
+    log("🔐 Kamera-Zugriff wird angefragt...");
+    stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    video.srcObject = stream;
+    log("✅ Kamera-Stream gestartet");
 
-  <script>
-    const log = (msg) => {
-      document.getElementById("log").textContent += "\n" + msg;
-      console.log(msg);
-    };
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d => d.kind === "videoinput");
 
-    const video = document.getElementById("video");
-    const cameraSelect = document.getElementById("cameraSelect");
-    const checkBtn = document.getElementById("checkPermissions");
-
-    let stream;
-
-    async function getCameras() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(d => d.kind === "videoinput");
-        log(`📷 Gefundene Kameras: ${videoInputs.length}`);
-
-        cameraSelect.innerHTML = "";
-        videoInputs.forEach((camera, i) => {
-          const option = document.createElement("option");
-          option.value = camera.deviceId;
-          option.text = camera.label || `Kamera ${i + 1}`;
-          cameraSelect.appendChild(option);
-        });
-
-        if (videoInputs.length > 0) {
-          startStream(videoInputs[0].deviceId);
-        }
-      } catch (err) {
-        log("❌ Fehler beim Abrufen der Kameras: " + err);
-      }
-    }
-
-    async function startStream(deviceId) {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: deviceId } }
-        });
-        video.srcObject = stream;
-        log("✅ Live-Stream gestartet");
-      } catch (err) {
-        log("❌ Fehler beim Starten des Streams: " + err.message);
-      }
-    }
-
-    checkBtn.addEventListener("click", async () => {
-      try {
-        log("🔐 Kamera-Zugriff wird angefragt...");
-        const testStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        testStream.getTracks().forEach(t => t.stop());
-        log("✅ Kamera-Zugriff erfolgreich");
-        await getCameras();
-      } catch (err) {
-        log("❌ Zugriff verweigert oder Fehler: " + err.message);
-      }
+    cameraSelect.innerHTML = "";
+    cams.forEach((cam, i) => {
+      const opt = document.createElement("option");
+      opt.value = cam.deviceId;
+      opt.text = cam.label || `Kamera ${i + 1}`;
+      cameraSelect.appendChild(opt);
     });
 
-    cameraSelect.addEventListener("change", () => {
-      const deviceId = cameraSelect.value;
-      if (deviceId) {
-        startStream(deviceId);
-      }
-    });
-  </script>
+    log(`📷 ${cams.length} Kamera(s) gefunden`);
+  } catch (err) {
+    log("❌ Fehler beim Kamerazugriff: " + err.message);
+  }
+}
 
-</body>
-</html>
+cameraSelect.addEventListener("change", async () => {
+  const deviceId = cameraSelect.value;
+  if (stream) stream.getTracks().forEach(track => track.stop());
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } });
+    video.srcObject = stream;
+    log("🔄 Kamera gewechselt");
+  } catch (err) {
+    log("❌ Fehler beim Kamerawechsel: " + err.message);
+  }
+});
+
+checkBtn.addEventListener("click", requestAccessAndListCameras);
+</script>
