@@ -26,18 +26,15 @@
     const html5QrCode = new Html5Qrcode("reader");
 
     html5QrCode.start(
-      { facingMode: "environment" }, // Rückkamera erzwingen
+       { facingMode: "environment" }, // Rückkamera
       {
         fps: 10,
-        qrbox: 250,
-        aspectRatio: 1.3333,
-        experimentalFeatures: {
-          useBarCodeDetectorIfSupported: true
-        },
+        qrbox: 250
+      },
         videoConstraints: {
           advanced: [{ zoom: 2.5 }] // Versuche 2,5x digitalen Zoom
-        }
-      },
+        },
+      
       onScanSuccess
     ).catch(err => {
       resultDiv.innerText = "❌ Kamera konnte nicht gestartet werden: " + err;
