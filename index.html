@@ -2,43 +2,76 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>QR-Code Scanner</title>
+  <title>QR-Code Scanner mit Kamera-Auswahl</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     #reader { width: 100%; max-width: 400px; margin: 1rem auto; }
-    #result { margin-top: 1rem; text-align: center; font-weight: bold; }
+    #result, #cameraSelect { margin-top: 1rem; text-align: center; }
     body { font-family: sans-serif; text-align: center; padding: 1rem; }
   </style>
 </head>
 <body>
 
   <h1>QR-Code Scanner</h1>
+
+  <select id="cameraSelect"></select>
   <div id="reader"></div>
   <div id="result">Scannen läuft…</div>
 
   <script>
     const resultDiv = document.getElementById("result");
+    const cameraSelect = document.getElementById("cameraSelect");
+    let html5QrCode;
 
     function onScanSuccess(decodedText, decodedResult) {
       resultDiv.innerText = "✅ QR-Code erkannt: " + decodedText;
     }
 
-    const html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(devices => {
+      if (devices && devices.length) {
+        // Fülle Dropdown
+        devices.forEach((device, index) => {
+          const option = document.createElement("option");
+          option.value = device.id;
+          option.text = device.label || `Kamera ${index + 1}`;
+          cameraSelect.appendChild(option);
+        });
 
-    html5QrCode.start(
-       { facingMode: "environment" }, // Rückkamera
-      {
-        fps: 10,
-        qrbox: 250,
-        videoConstraints: {
-          advanced: [{ zoom: 2.5 }] // Versuche 2,5x digitalen Zoom
-        }
-      },
-        
-      
-      onScanSuccess
-    ).catch(err => {
-      resultDiv.innerText = "❌ Kamera konnte nicht gestartet werden: " + err;
+        // Starte mit erster Kamera
+        startScanner(devices[0].id);
+      }
+    });
+
+    function startScanner(cameraId) {
+      if (html5QrCode) {
+        html5QrCode.stop().then(() => {
+          html5QrCode.clear();
+          runScanner(cameraId);
+        });
+      } else {
+        runScanner(cameraId);
+      }
+    }
+
+    function runScanner(cameraId) {
+      html5QrCode = new Html5Qrcode("reader");
+      html5QrCode.start(
+        cameraId,
+        {
+          fps: 10,
+          qrbox: 250,
+          videoConstraints: {
+            advanced: [{ zoom: 2.5 }]
+          }
+        },
+        onScanSuccess
+      ).catch(err => {
+        resultDiv.innerText = "❌ Kamera konnte nicht gestartet werden: " + err;
+      });
+    }
+
+    cameraSelect.addEventListener("change", (e) => {
+      startScanner(e.target.value);
     });
   </script>
 
