@@ -1,28 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="de">
 <head>
+  <meta charset="UTF-8">
+  <title>QR-Code Scanner mit Bildaufnahme und Zoom</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    #reader { width: 300px; margin-bottom: 10px; }
+    canvas { border: 1px solid #000; }
+  </style>
 </head>
 <body>
-  <div id="reader" style="width: 300px;"></div>
+  <h1>QR-Code Scanner mit Zoom</h1>
+
+  <!-- Kameraansicht -->
+  <div id="reader"></div>
+
+  <!-- Zoom-Bereich -->
+  <button id="captureBtn">Bild aufnehmen</button>
+  <canvas id="zoomedCanvas" style="display:none;"></canvas>
+
   <div id="result"></div>
 
   <script>
     function onScanSuccess(decodedText, decodedResult) {
-        document.getElementById('result').innerText = "QR-Code Inhalt: " + decodedText;
-        // Hier kannst du decodedText z.B. an ein Backend schicken
+      document.getElementById('result').innerText = "QR-Code Inhalt: " + decodedText;
     }
 
     const html5QrCode = new Html5Qrcode("reader");
+
+    // Starte den QR-Code Scanner mit der Rückkamera
     html5QrCode.start(
-      { facingMode: "environment" }, // Rückkamera
+      { facingMode: "environment" },
       {
         fps: 10,
         qrbox: { width: 300, height: 300 }
       },
       onScanSuccess
     ).catch(err => {
-        console.error("Fehler beim Starten der Kamera: ", err);
+      console.error("Fehler beim Starten der Kamera: ", err);
+    });
+
+    // Bildaufnahme und Zoom
+    document.getElementById("captureBtn").addEventListener("click", () => {
+      // Canvas zum Zoom erstellen
+      const canvas = document.getElementById("zoomedCanvas");
+      const ctx = canvas.getContext("2d");
+
+      // Die Kameraanzeige in das Canvas übertragen (zum Zoomen)
+      const video = document.querySelector("video");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+
+      // Bild vom Video auf das Canvas übertragen
+      ctx.drawImage(video, 0, 0);
+
+      // Zoom anwenden (auf 200% skalieren, als Beispiel)
+      const zoomFactor = 2;
+      const zoomedWidth = canvas.width / zoomFactor;
+      const zoomedHeight = canvas.height / zoomFactor;
+
+      // Neues Canvas mit Zoom rendern
+      const zoomedCanvas = document.getElementById("zoomedCanvas");
+      const zoomedCtx = zoomedCanvas.getContext("2d");
+      zoomedCanvas.width = zoomedWidth;
+      zoomedCanvas.height = zoomedHeight;
+
+      zoomedCtx.drawImage(
+        canvas,
+        0, 0, canvas.width, canvas.height,  // Bildbereich
+        0, 0, zoomedWidth, zoomedHeight    // Zielbereich
+      );
+
+      // Nun den QR-Code aus dem gezoomten Bild scannen
+      const imageData = zoomedCtx.getImageData(0, 0, zoomedWidth, zoomedHeight);
+      const qrCodeScanner = new Html5QrcodeScanner("zoomedCanvas");
+
+      qrCodeScanner.scanImageData(imageData).then(decodedText => {
+        document.getElementById('result').innerText = "QR-Code Inhalt (gezoomt): " + decodedText;
+      }).catch(err => {
+        document.getElementById('result').innerText = "Kein QR-Code gefunden!";
+      });
     });
   </script>
 </body>
