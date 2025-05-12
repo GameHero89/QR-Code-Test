@@ -2,80 +2,115 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>Kamera-Diagnose</title>
+  <title>QR-Code Scanner mit Zoom</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    select, button { font-size: 1rem; padding: 0.5rem; margin-top: 1rem; }
-    video { margin-top: 1rem; width: 100%; max-width: 480px; height: auto; border: 1px solid #ccc; }
-    pre { text-align: left; max-width: 90%; margin: 1rem auto; background: #f8f8f8; padding: 1rem; overflow-x: auto; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2rem;
+    }
+    #qr-reader {
+      width: 300px;
+      margin: auto;
+    }
+    #zoomSlider {
+      width: 80%;
+      margin-top: 1rem;
+      display: none;
+    }
+    #qr-result {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+    #cameraList {
+      margin: 1rem auto;
+      max-width: 90%;
+    }
   </style>
 </head>
 <body>
 
-  <h1>📷 Kamera-Diagnose</h1>
+  <h1>Live QR-Code Scanner mit Zoom</h1>
+  <select id="cameraList" style="display:none;"></select>
+  <div id="qr-reader"></div>
+  <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1" />
+  <div id="qr-result">Bitte Kamera aktivieren…</div>
 
-  <button id="checkPermissions">🔍 Kamera testen</button>
-  <br>
-  <label for="cameraSelect">🎥 Kamera auswählen:</label>
-  <br>
-  <select id="cameraSelect"></select>
-  <br>
-  <video id="video" autoplay playsinline></video>
+  <script>
+    const qrResult = document.getElementById("qr-result");
+    const zoomSlider = document.getElementById("zoomSlider");
+    const cameraList = document.getElementById("cameraList");
 
-  <pre id="log">Logausgabe…</pre>
+    const qrCodeScanner = new Html5Qrcode("qr-reader");
 
- <script>
-const video = document.getElementById("video");
-const cameraSelect = document.getElementById("cameraSelect");
-const checkBtn = document.getElementById("checkPermissions");
-const logEl = document.getElementById("log");
+    async function initCameraScanner() {
+      try {
+        // Zuerst Kamera-Rechte anfordern, damit wir `label` bekommen
+        await navigator.mediaDevices.getUserMedia({ video: true });
 
-let stream;
+        const cameras = await Html5Qrcode.getCameras();
+        console.log("Gefundene Kameras:", cameras);
 
-const log = (msg) => {
-  logEl.textContent += "\n" + msg;
-  console.log(msg);
-};
+        if (cameras.length === 0) {
+          qrResult.innerText = "❌ Keine Kamera gefunden.";
+          return;
+        }
 
-async function requestAccessAndListCameras() {
-  try {
-    log("🔐 Kamera-Zugriff wird angefragt...");
-    stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    video.srcObject = stream;
-    log("✅ Kamera-Stream gestartet");
+        // Kamera-Auswahlliste anzeigen
+        cameraList.style.display = "block";
+        cameraList.innerHTML = "";
 
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d => d.kind === "videoinput");
+        cameras.forEach((cam, index) => {
+          const option = document.createElement("option");
+          option.value = cam.id;
+          option.textContent = cam.label || `Kamera ${index + 1}`;
+          cameraList.appendChild(option);
+        });
 
-    cameraSelect.innerHTML = "";
-    cams.forEach((cam, i) => {
-      const opt = document.createElement("option");
-      opt.value = cam.deviceId;
-      opt.text = cam.label || `Kamera ${i + 1}`;
-      cameraSelect.appendChild(opt);
-    });
+        // Standard: Rückkamera oder erste
+        const defaultCamera = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[0];
+        cameraList.value = defaultCamera.id;
 
-    log(`📷 ${cams.length} Kamera(s) gefunden`);
-  } catch (err) {
-    log("❌ Fehler beim Kamerazugriff: " + err.message);
-  }
-}
+        // Starten
+        startScanner(defaultCamera.id);
 
-cameraSelect.addEventListener("change", async () => {
-  const deviceId = cameraSelect.value;
-  if (stream) stream.getTracks().forEach(track => track.stop());
+        // Wechsel bei Auswahl
+        cameraList.addEventListener("change", () => {
+          qrCodeScanner.stop().then(() => {
+            startScanner(cameraList.value);
+          });
+        });
 
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: deviceId } } });
-    video.srcObject = stream;
-    log("🔄 Kamera gewechselt");
-  } catch (err) {
-    log("❌ Fehler beim Kamerawechsel: " + err.message);
-  }
-});
+      } catch (err) {
+        qrResult.innerText = "❌ Fehler beim Kamera-Zugriff: " + err;
+        console.error(err);
+      }
+    }
 
-checkBtn.addEventListener("click", requestAccessAndListCameras);
-</script>
+    function startScanner(cameraId) {
+      qrCodeScanner.start(
+        cameraId,
+        {
+          fps: 10,
+          qrbox: 250,
+          aspectRatio: 1.33
+        },
+        qrCodeMessage => {
+          qrResult.innerText = "✅ QR-Code erkannt: " + qrCodeMessage;
+        },
+        errorMessage => {
+          qrResult.innerText = "Scanne…";
+        }
+      ).then(() => {
+        const track = qrCodeScanner.getRunningTrack();
+        const capabilities = track?.getCapabilities();
 
-</body>
-</html>
+        if (capabilities?.zoom) {
+          zoomSlider.style.display = "block";
+          zoomSlider.min = capabilities.zoom.min;
+          zoomSlider.max = capabilities.zoom.max;
+          zoomSlider.step = capabilities.zoom.step || 0.1;
+          zoomSlider.value = capabilities.zoom.min;
+
+          zoomSlider.oninput = () =>
