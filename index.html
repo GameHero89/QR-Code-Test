@@ -26,7 +26,7 @@
     const html5QrCode = new Html5Qrcode("reader");
 
     html5QrCode.start(
-      { facingMode: { exact: "environment" } }, // Rückkamera erzwingen
+      { facingMode: "environment" }, // Rückkamera erzwingen
       {
         fps: 10,
         qrbox: 250,
