@@ -2,89 +2,46 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>QR-Code Scanner mit Zoom</title>
+  <title>QR-Code aus Foto erkennen</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; }
-    #reader { width: 300px; margin: auto; }
-    canvas, img { display: none; margin-top: 10px; border: 1px solid #000; }
+    body { font-family: sans-serif; text-align: center; padding: 2rem; }
+    #preview { max-width: 90%; margin-top: 1rem; display: none; }
+    #result { margin-top: 1rem; font-weight: bold; }
   </style>
 </head>
 <body>
 
-  <h1>QR-Code Scanner mit Bildaufnahme</h1>
-  <div id="reader"></div>
-  <button id="captureBtn">📸 Bild aufnehmen & analysieren</button>
-  <canvas id="snapshotCanvas"></canvas>
-  <img id="snapshotImg" />
-  <div id="result">Warte auf Aufnahme…</div>
+  <h1>QR-Code aus Foto erkennen</h1>
+
+  <input type="file" id="fileInput" accept="image/*" />
+  <br>
+  <img id="preview" />
+  <div id="result">Bitte ein Bild mit QR-Code auswählen.</div>
 
   <script>
-    const html5QrCode = new Html5Qrcode("reader");
-    const snapshotCanvas = document.getElementById("snapshotCanvas");
-    const snapshotImg = document.getElementById("snapshotImg");
+    const fileInput = document.getElementById("fileInput");
     const resultDiv = document.getElementById("result");
+    const preview = document.getElementById("preview");
 
-    let videoTrack;
+    fileInput.addEventListener("change", async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
 
-    // Kamera starten
-    html5QrCode.start(
-      { facingMode: "environment" },
-      { fps: 10, qrbox: 250 },
-      (text) => {
-        resultDiv.innerText = "Live-Scan: " + text;
-      }
-    ).then((stream) => {
-      videoTrack = stream.getVideoTracks()[0]; // Zugriff auf das Kamera-Video für später
-    }).catch((err) => {
-      resultDiv.innerText = "Kamera konnte nicht gestartet werden: " + err;
-    });
+      const url = URL.createObjectURL(file);
+      preview.src = url;
+      preview.style.display = "block";
 
-    document.getElementById("captureBtn").addEventListener("click", async () => {
-      const video = document.querySelector("video");
-      if (!video) {
-        alert("Kein Video verfügbar");
-        return;
+      const qrScanner = new Html5Qrcode("reader-temp"); // Dummy-Div für scanFile()
+
+      try {
+        const text = await qrScanner.scanFile(file, true);
+        resultDiv.innerText = "✅ QR-Code erkannt: " + text;
+      } catch (err) {
+        resultDiv.innerText = "❌ Kein QR-Code erkannt: " + err;
       }
 
-      // Auflösung bestimmen
-      const width = video.videoWidth;
-      const height = video.videoHeight;
-
-      // Canvas vorbereiten
-      snapshotCanvas.width = width;
-      snapshotCanvas.height = height;
-      const ctx = snapshotCanvas.getContext("2d");
-      ctx.drawImage(video, 0, 0, width, height);
-
-      // Zoom-Bereich (zentraler Ausschnitt)
-      const zoomFactor = 2.0;
-      const zoomWidth = width / zoomFactor;
-      const zoomHeight = height / zoomFactor;
-      const zoomX = (width - zoomWidth) / 2;
-      const zoomY = (height - zoomHeight) / 2;
-
-      // Neuer Canvas für Zoom
-      const zoomCanvas = document.createElement("canvas");
-      zoomCanvas.width = zoomWidth;
-      zoomCanvas.height = zoomHeight;
-      const zoomCtx = zoomCanvas.getContext("2d");
-      zoomCtx.drawImage(snapshotCanvas, zoomX, zoomY, zoomWidth, zoomHeight, 0, 0, zoomWidth, zoomHeight);
-
-      // DataURL erzeugen & anzeigen (optional)
-      const dataUrl = zoomCanvas.toDataURL("image/png");
-      snapshotImg.src = dataUrl;
-      snapshotImg.style.display = "block";
-
-      // Jetzt mit html5-qrcode das Bild scannen
-      const tempQrScanner = new Html5Qrcode("temp-scan"); // Dummy-ID
-      tempQrScanner.scanFile(dataUrl, true)
-        .then(qrCodeMessage => {
-          resultDiv.innerText = "📦 Gescannter Inhalt (Foto): " + qrCodeMessage;
-        })
-        .catch(err => {
-          resultDiv.innerText = "❌ Kein QR-Code erkannt: " + err;
-        });
+      URL.revokeObjectURL(url);
     });
   </script>
 
