@@ -2,90 +2,91 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>QR-Code Scanner mit Bildaufnahme und Zoom</title>
+  <title>QR-Code Scanner mit Zoom</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    #reader { width: 300px; margin-bottom: 10px; }
-    canvas { border: 1px solid #000; }
+    body { font-family: sans-serif; text-align: center; }
+    #reader { width: 300px; margin: auto; }
+    canvas, img { display: none; margin-top: 10px; border: 1px solid #000; }
   </style>
 </head>
 <body>
-  <h1>QR-Code Scanner mit Zoom</h1>
 
-  <!-- Kameraansicht -->
+  <h1>QR-Code Scanner mit Bildaufnahme</h1>
   <div id="reader"></div>
-
-  <!-- Zoom-Bereich -->
-  <button id="captureBtn">Bild aufnehmen</button>
-  <canvas id="zoomedCanvas" style="display:none;"></canvas>
-
-  <div id="result"></div>
+  <button id="captureBtn">📸 Bild aufnehmen & analysieren</button>
+  <canvas id="snapshotCanvas"></canvas>
+  <img id="snapshotImg" />
+  <div id="result">Warte auf Aufnahme…</div>
 
   <script>
-    function onScanSuccess(decodedText, decodedResult) {
-      document.getElementById('result').innerText = "QR-Code Inhalt: " + decodedText;
-    }
-
     const html5QrCode = new Html5Qrcode("reader");
+    const snapshotCanvas = document.getElementById("snapshotCanvas");
+    const snapshotImg = document.getElementById("snapshotImg");
+    const resultDiv = document.getElementById("result");
 
-    // Starte den QR-Code Scanner mit der Rückkamera
+    let videoTrack;
+
+    // Kamera starten
     html5QrCode.start(
       { facingMode: "environment" },
-      {
-        fps: 10,
-        qrbox: { width: 300, height: 300 }
-      },
-      onScanSuccess
-    ).catch(err => {
-      console.error("Fehler beim Starten der Kamera: ", err);
+      { fps: 10, qrbox: 250 },
+      (text) => {
+        resultDiv.innerText = "Live-Scan: " + text;
+      }
+    ).then((stream) => {
+      videoTrack = stream.getVideoTracks()[0]; // Zugriff auf das Kamera-Video für später
+    }).catch((err) => {
+      resultDiv.innerText = "Kamera konnte nicht gestartet werden: " + err;
     });
 
-    // Bildaufnahme und Zoom
-    document.getElementById("captureBtn").addEventListener("click", () => {
+    document.getElementById("captureBtn").addEventListener("click", async () => {
       const video = document.querySelector("video");
-
       if (!video) {
-        console.error("Kein Video-Element gefunden.");
+        alert("Kein Video verfügbar");
         return;
       }
 
-      // Canvas zum Zoom erstellen
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+      // Auflösung bestimmen
+      const width = video.videoWidth;
+      const height = video.videoHeight;
 
-      // Die Video-Größe in Canvas übertragen
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Canvas vorbereiten
+      snapshotCanvas.width = width;
+      snapshotCanvas.height = height;
+      const ctx = snapshotCanvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, width, height);
 
-      // Zoom anwenden (z. B. auf 200%)
-      const zoomFactor = 2;
-      const zoomedWidth = canvas.width / zoomFactor;
-      const zoomedHeight = canvas.height / zoomFactor;
+      // Zoom-Bereich (zentraler Ausschnitt)
+      const zoomFactor = 2.0;
+      const zoomWidth = width / zoomFactor;
+      const zoomHeight = height / zoomFactor;
+      const zoomX = (width - zoomWidth) / 2;
+      const zoomY = (height - zoomHeight) / 2;
 
-      // Neues Canvas mit Zoom rendern
-      const zoomedCanvas = document.getElementById("zoomedCanvas");
-      const zoomedCtx = zoomedCanvas.getContext("2d");
-      zoomedCanvas.width = zoomedWidth;
-      zoomedCanvas.height = zoomedHeight;
+      // Neuer Canvas für Zoom
+      const zoomCanvas = document.createElement("canvas");
+      zoomCanvas.width = zoomWidth;
+      zoomCanvas.height = zoomHeight;
+      const zoomCtx = zoomCanvas.getContext("2d");
+      zoomCtx.drawImage(snapshotCanvas, zoomX, zoomY, zoomWidth, zoomHeight, 0, 0, zoomWidth, zoomHeight);
 
-      zoomedCtx.drawImage(
-        canvas,
-        0, 0, canvas.width, canvas.height, // Bildbereich
-        0, 0, zoomedWidth, zoomedHeight   // Zielbereich
-      );
+      // DataURL erzeugen & anzeigen (optional)
+      const dataUrl = zoomCanvas.toDataURL("image/png");
+      snapshotImg.src = dataUrl;
+      snapshotImg.style.display = "block";
 
-      // Nun den QR-Code aus dem gezoomten Bild scannen
-      const imageData = zoomedCtx.getImageData(0, 0, zoomedWidth, zoomedHeight);
-      const qrCodeScanner = new Html5QrcodeScanner("zoomedCanvas");
-
-      // Scannen des Bildes
-      qrCodeScanner.scanImageData(imageData).then(decodedText => {
-        document.getElementById('result').innerText = "QR-Code Inhalt (gezoomt): " + decodedText;
-      }).catch(err => {
-        document.getElementById('result').innerText = "Kein QR-Code gefunden!";
-      });
+      // Jetzt mit html5-qrcode das Bild scannen
+      const tempQrScanner = new Html5Qrcode("temp-scan"); // Dummy-ID
+      tempQrScanner.scanFile(dataUrl, true)
+        .then(qrCodeMessage => {
+          resultDiv.innerText = "📦 Gescannter Inhalt (Foto): " + qrCodeMessage;
+        })
+        .catch(err => {
+          resultDiv.innerText = "❌ Kein QR-Code erkannt: " + err;
+        });
     });
   </script>
+
 </body>
 </html>
