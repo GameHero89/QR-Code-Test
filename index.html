@@ -2,13 +2,64 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <title>QR-Code aus Foto mit Zoom erkennen</title>
+  <title>QR-Code aus Foto erkennen</title>
   <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 2rem; }
-    #preview { max-width: 90%; margin-top: 1rem; display: none; border: 1px solid #ccc; }
-    #result { margin-top: 1rem; font-weight: bold; }
-    #canvas { display: none; }
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 2rem;
+      background-color: #f8f9fa;
+    }
+
+    h1 {
+      color: #343a40;
+    }
+
+    #preview {
+      max-width: 90%;
+      margin-top: 1rem;
+      display: none;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    #result {
+      margin-top: 1rem;
+      font-weight: bold;
+    }
+
+    button {
+      margin-top: 1rem;
+      padding: 0.6rem 1.2rem;
+      font-size: 1rem;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background-color: #28a745;
+      color: white;
+    }
+
+    button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+
+    #list {
+      margin-top: 2rem;
+      text-align: left;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+      background: white;
+      padding: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    }
+
+    #whatsapp {
+      background-color: #25D366;
+    }
   </style>
 </head>
 <body>
@@ -17,56 +68,75 @@
 
   <input type="file" id="fileInput" accept="image/*" capture="environment" />
   <br>
-  <label for="zoomRange">Zoom-Faktor:</label>
-  <input type="range" id="zoomRange" min="1" max="5" step="0.1" value="1" />
-  <div>
-    <img id="preview" />
-  </div>
+  <img id="preview" />
   <div id="result">Bitte ein Bild mit QR-Code auswählen.</div>
-  <canvas id="canvas"></canvas>
+
+  <button id="confirmBtn" style="display:none;">✅ Bestätigen & zur Liste hinzufügen</button>
+
+  <div id="list" style="display:none;">
+    <h3>Gesammelte QR-Codes:</h3>
+    <ul id="qrList"></ul>
+    <button id="whatsapp">📤 Per WhatsApp senden</button>
+  </div>
+
   <div id="reader-temp" style="display: none;"></div>
 
   <script>
     const fileInput = document.getElementById("fileInput");
-    const zoomInput = document.getElementById("zoomRange");
     const resultDiv = document.getElementById("result");
     const preview = document.getElementById("preview");
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    const confirmBtn = document.getElementById("confirmBtn");
+    const qrList = document.getElementById("qrList");
+    const listContainer = document.getElementById("list");
+    const whatsappBtn = document.getElementById("whatsapp");
+
+    let lastResult = "";
+    const collected = [];
 
     fileInput.addEventListener("change", async () => {
       const file = fileInput.files[0];
       if (!file) return;
 
-      const zoom = parseFloat(zoomInput.value);
-      const img = new Image();
-      const objectURL = URL.createObjectURL(file);
-      img.src = objectURL;
+      const url = URL.createObjectURL(file);
+      preview.src = url;
+      preview.style.display = "block";
 
-      img.onload = async () => {
-        // Canvas erhält volle Auflösung * Zoom
-        canvas.width = img.naturalWidth * zoom;
-        canvas.height = img.naturalHeight * zoom;
+      const qrScanner = new Html5Qrcode("reader-temp");
 
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      try {
+        const text = await qrScanner.scanFile(file, true);
+        resultDiv.innerText = "✅ QR-Code erkannt: " + text;
+        lastResult = text;
+        confirmBtn.style.display = "inline-block";
+      } catch (err) {
+        resultDiv.innerText = "❌ Kein QR-Code erkannt: " + err;
+        confirmBtn.style.display = "none";
+        lastResult = "";
+      }
 
-        // Zeige Vorschau-Bild (in Anzeigegröße, nicht zoomen)
-        preview.src = objectURL;
-        preview.style.display = "block";
+      URL.revokeObjectURL(url);
+    });
 
-        // Blob vom Canvas erzeugen (für QR-Code-Erkennung)
-        canvas.toBlob(async (blob) => {
-          const qrScanner = new Html5Qrcode("reader-temp");
-          try {
-            const text = await qrScanner.scanFile(blob, true);
-            resultDiv.innerText = "✅ QR-Code erkannt: " + text;
-          } catch (err) {
-            resultDiv.innerText = "❌ Kein QR-Code erkannt: " + err;
-          }
-        }, "image/jpeg", 0.95);
+    confirmBtn.addEventListener("click", () => {
+      if (!lastResult) return;
 
-        URL.revokeObjectURL(objectURL);
-      };
+      collected.push(lastResult);
+
+      const li = document.createElement("li");
+      li.textContent = lastResult;
+      qrList.appendChild(li);
+
+      listContainer.style.display = "block";
+      confirmBtn.style.display = "none";
+      resultDiv.innerText = "➡️ Zur Liste hinzugefügt!";
+    });
+
+    whatsappBtn.addEventListener("click", () => {
+      if (collected.length === 0) return;
+
+      const message = encodeURIComponent("Hier sind die QR-Codes:\n\n" + collected.join("\n"));
+      const whatsappURL = `https://wa.me/?text=${message}`;
+      window.open(whatsappURL, "_blank");
     });
   </script>
 
