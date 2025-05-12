@@ -113,4 +113,21 @@
           zoomSlider.step = capabilities.zoom.step || 0.1;
           zoomSlider.value = capabilities.zoom.min;
 
-          zoomSlider.oninput = () =>
+          zoomSlider.oninput = () => {
+            track.applyConstraints({ advanced: [{ zoom: parseFloat(zoomSlider.value) }] });
+          };
+        } else {
+          zoomSlider.style.display = "none";
+          console.warn("Zoom wird nicht unterstützt.");
+        }
+      }).catch(err => {
+        qrResult.innerText = "❌ Fehler beim Starten des Scanners: " + err;
+      });
+    }
+
+    // Start
+    initCameraScanner();
+  </script>
+
+</body>
+</html>
